@@ -14,9 +14,10 @@ typedef struct {
     rot topLeft, topRight, bottomLeft, bottomRight;
 } cameraPoints;
 
-double FOV = 150;
+double FOV = 180;
 double VECTFOV = 90;
 rot cameraRotation = {0, 0};
+vec3 cameraPosition = {0, 0, 0};
 double xMult = 0;
 double yMult = 0;
 
@@ -32,6 +33,11 @@ vec3 points[8] = {
     {4, -1, -1},
 };
 int pointAmount = sizeof(points) / sizeof(vec3);
+
+int frameCount = 0;
+int currentTime = 0, previousTime = 0;
+
+const double STEP = 0.1;
 
 void init() {
     xMult = 2 / FOV;
@@ -127,7 +133,14 @@ double angleDiff(double a1, double a2) {
     }
 }
 
-void drawPoint(rot projection) {
+float distance(vec3 p1, vec3 p2) {
+    return sqrt(pow(p2.x - p1.x, 2) + pow(p2.y - p1.y, 2) + pow(p2.z - p1.z, 2));
+}
+
+void drawPoint(vec3 point) {
+
+    vec3 relPoint = {point.x - cameraPosition.x, point.y - cameraPosition.y, point.z - cameraPosition.z};
+    rot projection = projectPoint(relPoint);
 
     if (fabs(angleDiff(projection.pitch, cameraRotation.pitch)) <= FOV / 2 &&
         fabs(angleDiff(projection.yaw,   cameraRotation.yaw))   <= VECTFOV / 2) {
@@ -135,13 +148,28 @@ void drawPoint(rot projection) {
         double projX = xMult * angleDiff(projection.pitch, cameraRotation.pitch);
         double projY = yMult * angleDiff(projection.yaw, cameraRotation.yaw);
 
-        drawCircle(projX, projY, 0.01, 25);
+        double radius = 0.1 / distance(cameraPosition, point);
+
+        drawCircle(projX, projY, radius, 25);
     }
 }
 
+void updateFps() {
+    currentTime = glutGet(GLUT_ELAPSED_TIME);
+    int deltaTime = currentTime - previousTime;
+    float fps = frameCount * 1000.0 / deltaTime;
+    char buffer[26];
+    sprintf(buffer, "FPS: %.2f", fps);
+    glutSetWindowTitle(buffer);
+    frameCount = 0;
+    previousTime = currentTime;
+    glutTimerFunc(1000, updateFps, 0);
+}
+
 void update() {
+    frameCount++;
     glutPostRedisplay();
-    glutTimerFunc(16, update, 0);
+    glutTimerFunc(0, update, 0);
 }
 
 void display() {
@@ -150,21 +178,65 @@ void display() {
 
     for (int i = 0; i < pointAmount; i++) {
         vec3 point = points[i];
-        rot projection = projectPoint(point);
-        drawPoint(projection);
+        drawPoint(point);
     }
 
     glFlush();
     validateRotation(&cameraRotation);
 }
 
+void keyboard(unsigned char key, int x, int y) {
+    // printf("Key pressed: %i\n", key);
+
+    switch (key) {
+        case 27: // Escape key
+            exit(0);
+            break;
+
+        case 32: // Space key
+            cameraPosition.y += STEP;
+            break;
+        case 'b':
+            cameraPosition.y -= STEP;
+            break;
+
+        case 'w':
+            cameraPosition.x += STEP;
+            break;
+        case 's':
+            cameraPosition.x -= STEP;
+            break;
+        case 'd':
+            cameraPosition.z += STEP;
+            break;
+        case 'a':
+            cameraPosition.z -= STEP;
+            break;
+
+        case 'j':
+            cameraRotation.pitch += 10;
+            break;
+        case 'l':
+            cameraRotation.pitch -= 10;
+            break;
+        case 'i':
+            cameraRotation.yaw += 5;
+            break;
+        case 'k':
+            cameraRotation.yaw -= 5;
+            break;
+    }
+}
+
 int main(int argc, char** argv) {
     init();
 
     glutInit(&argc, argv);
-    glutCreateWindow("Insanity");
+    glutCreateWindow("Im actually going crazy");
     glutDisplayFunc(display);
-    glutTimerFunc(16, update, 0);
+    glutKeyboardFunc(keyboard);
+    glutTimerFunc(0, update, 0);
+    glutTimerFunc(1000, updateFps, 0);
     glutMainLoop();
 
     return 0;
